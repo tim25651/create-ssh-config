@@ -10,7 +10,7 @@ fi
 
 ip_regex="([0-9]{1,3}\.){3}[0-9]{1,3}"
 if [[ $1 =~ $ip_regex ]]; then
-    if [ ! -z "$(timeout 0.1 nc -z $1 22 2>&1 | grep "succeeded")" ]; then # todo: port should be configurable
+    if [ ! -z "$(timeout 0.1 nc -vz $1 22 2>&1 | grep "succeeded")" ]; then # todo: port should be configurable
         exit 0
     else
         exit 1 # exit as a VPN unlikely has an IP as name
