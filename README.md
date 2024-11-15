@@ -18,7 +18,7 @@ Configured with a JSON which defines each host and its hostnames.
             {
                 # everything is optional
                 "hostname": "host1.example.com", # no default
-                "proxyjump": "other host" # default: none
+                "proxyjump": "other host", # default: none
                 "check-subnet": "ping", # default: arguments to check_subnet script
                                         # if ping, the hostname is used
                 "port": 1222 # default: 22
