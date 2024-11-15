@@ -44,18 +44,15 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 TEMPLATE_FILE = Path(__file__).parent / "template.j2"
-CHECK_SUBNET_FILE = Path(__file__).parent / "check_subnet"
+CHECK_SUBNET_FILE = Path(__file__).parent / "check-subnet"
 
 ParsedHost: TypeAlias = "tuple[str | None, str | None, int | None, str | None, str | None, str | None, str | None]"  # noqa: E501
 
-
-class HostnameDef(TypedDict, total=False):
-    """Layout of a single hostname in a host."""
-
-    hostname: str
-    proxyjump: str
-    check_subnet: str
-    port: int
+HostnameDef = TypedDict(
+    "HostnameDef",
+    {"hostname": str, "proxyjump": str, "check-subnet": str, "port": int},
+    total=False,
+)
 
 
 class Host(TypedDict):
@@ -78,6 +75,7 @@ class Namespace(argparse.Namespace):
     no_store: bool
     template: Path
     check_subnet: Path
+    ignore_missing: bool
 
 
 def parse_args() -> Namespace:
@@ -110,9 +108,15 @@ def parse_args() -> Namespace:
     )
     parser.add_argument(
         "--check-subnet",
-        help="Path to the check_subnet script",
+        help="Path to the check-subnet script",
         type=Path,
         default=CHECK_SUBNET_FILE,
+    )
+    parser.add_argument(
+        "--ignore-missing",
+        help="Ignore missing check-subnet script",
+        action="store_true",
+        default=False,
     )
     return parser.parse_args()  # type: ignore[return-value]
 
@@ -160,7 +164,7 @@ def create_config(
 
             lhostname = hostname.get("hostname")
             ljump = hostname.get("proxyjump")
-            lcheck = hostname.get("check_subnet")
+            lcheck = hostname.get("check-subnet")
             if lforce and not ljump and not last:
                 ljump = "none"
 
@@ -171,7 +175,7 @@ def create_config(
                 lcheck = lhostname
 
             if last and lcheck:
-                raise ValueError(f"Last hostname must not have check_subnet {lcheck}")
+                raise ValueError(f"Last hostname must not have check-subnet {lcheck}")
 
             parsed_hosts[lhost].append(
                 (lhostname, luser, lport, ljump, lcheck, lauth, ifile)
@@ -212,17 +216,18 @@ def cli() -> int:
     """Main entry point of the script."""
     args = parse_args()
 
-    # try if name is in PATH
-    only_name = shutil.which(args.check_subnet.name)
-    if only_name:
-        args.check_subnet = Path(args.check_subnet.name)
-    else:
-        # check if the full check_subnet script is in PATH
-        full_path = shutil.which(args.check_subnet)
-        if not full_path:
-            raise FileNotFoundError(
-                f"check_subnet script {args.check_subnet} not found"
-            )
+    if not args.ignore_missing:
+        # try if just the basename is in PATH
+        only_name = shutil.which(args.check_subnet.name)
+        if only_name:
+            args.check_subnet = Path(args.check_subnet.name)
+        else:
+            # check if the full check-subnet script is in PATH
+            full_path = shutil.which(args.check_subnet)
+            if not full_path:
+                raise FileNotFoundError(
+                    f"check-subnet script {args.check_subnet} not found"
+                )
 
     template = args.template.read_text("utf-8")
     hosts_content = args.hostsfile.read_bytes()
