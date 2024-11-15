@@ -1,0 +1,45 @@
+# Keep SSH connections alive
+TCPKeepAlive yes
+ServerAliveInterval 160
+
+# Hosts
+{% for host, subhosts in hosts.items() %}
+# begin {{ host }}
+{% for hostname, user, port, proxyjump, check_subnet, auth, identityfile in subhosts %}
+{%- if check_subnet is not none %}
+Match host {{ host }} exec "{{ check_subnet_executable }} {{ check_subnet }}"
+{%- else %}
+Host {{ host }}
+{%- endif %}
+    {%- if hostname is not none %}
+    HostName {{ hostname }}
+    {%- endif %}
+    {%- if user is not none %}
+    User {{ user }}
+    {%- endif %}
+    {%- if port is not none %}
+    Port {{ port }}
+    {%- endif %}
+    {%- if proxyjump is not none %}
+    ProxyJump {{ proxyjump }}
+    {%- endif %}
+    {%- if auth is not none %}
+    PreferredAuthentications {{ auth }}
+    {%- endif %}
+    {%- if identityfile is not none %}
+    IdentityFile {{ identityfile }}
+    {%- endif %}
+{% endfor %}
+# end {{ host }}
+{% endfor %}
+
+# Default settings
+Host *
+    Compression yes
+    PreferredAuthentications publickey
+    IdentityFile ~/.ssh/id_ed25519
+    GSSAPIAuthentication yes
+    GSSAPIDelegateCredentials yes
+    {{ no_x11 }}ForwardX11 yes
+    {{ no_x11 }}ForwardX11Trusted yes
+    XAuthLocation /opt/X11/bin/xauth
