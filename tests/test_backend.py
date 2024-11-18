@@ -18,12 +18,18 @@ from create_ssh_config import (
     save_config,
 )
 
+TESTS_DIR = Path(__file__).parent
+DATA_DIR = TESTS_DIR / "data"
+INVALID_AT_RUNTIME = DATA_DIR / "invalid_at_runtime"
+INVALID_AT_VALIDATION = DATA_DIR / "invalid_at_validation"
+VALID = DATA_DIR / "valid"
+
 
 @pytest.mark.parametrize("overwrite", [True, False])
 @pytest.mark.parametrize("exists", [True, False])
 def test_save_config(exists: bool, overwrite: bool) -> None:
-    ssh_dir = Path.home().joinpath(".ssh")
-    config_file = Path.home().joinpath(".ssh/config")
+    ssh_dir = Path.home() / ".ssh"
+    config_file = ssh_dir / "config"
 
     if exists:
         ssh_dir.mkdir(0o700)
@@ -35,8 +41,6 @@ def test_save_config(exists: bool, overwrite: bool) -> None:
     else:
         save_config("config", overwrite)
         assert config_file.read_text() == "config"
-        # assert mode is 0o644
-        # assert .ssh mode is 0o700
         assert ssh_dir.stat().st_mode == 0o40700
         assert config_file.stat().st_mode == 0o100644
 
@@ -48,7 +52,7 @@ def test_finalize_config(forward_x11: bool) -> None:
     assert config == PREAMBLE + "body" + POSTAMBLE.format(no_x11=no_x11)
 
 
-@pytest.mark.parametrize("hostsfile", Path(__file__).parent.glob("data/*.json"))
+@pytest.mark.parametrize("hostsfile", INVALID_AT_VALIDATION.glob("*.json"))
 def test_get_hosts(hostsfile: Path) -> None:
     valid = not hostsfile.stem.endswith("_invalid")
     if not valid:
@@ -61,7 +65,7 @@ def test_get_hosts(hostsfile: Path) -> None:
         assert all(isinstance(host, Host) for host in hosts)
 
 
-@pytest.mark.parametrize("hostsfile", Path(__file__).parent.glob("data/test*.json"))
+@pytest.mark.parametrize("hostsfile", VALID.glob("*.json"))
 def test_create_body(hostsfile: Path, template: str) -> None:
     hosts = get_hosts(hostsfile)
     body = create_body(template, hosts, None, Path("CHECK_SUBNET"))
@@ -80,16 +84,15 @@ def test_create_body(hostsfile: Path, template: str) -> None:
     ],
 )
 def test_check_subnet_in_last(hostsfile: str, error: str, template: str) -> None:
-    hosts = get_hosts(Path(__file__).parent.joinpath("invalid").joinpath(hostsfile))
+    hosts = get_hosts(INVALID_AT_RUNTIME / hostsfile)
 
     with pytest.raises(ValueError, match=f"^{error}$"):
         create_body(template, hosts, None, Path("CHECK_SUBNET"))
 
 
 def test_localhost(template: str) -> None:
-    hosts = get_hosts(Path(__file__).parent.joinpath("data/test1.json"))
+    hosts = get_hosts(DATA_DIR / "localhost.json")
     body = create_body(template, hosts, "testhost", Path("CHECK_SUBNET"))
-    expected = (
-        Path(__file__).parent.joinpath("data/localhost.config").read_text("utf-8")
-    )
-    assert body == expected
+    expected = DATA_DIR / "localhost.config"
+    expected_content = expected.read_text("utf-8")
+    assert body == expected_content

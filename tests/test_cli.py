@@ -10,6 +10,11 @@ import pytest
 from create_ssh_config import CHECK_SUBNET_FILE, TEMPLATE_FILE
 from create_ssh_config.cli import Namespace, cli, parse_args, validate_check_subnet
 
+TESTS_DIR = Path(__file__).parent
+DATA_DIR = TESTS_DIR / "data"
+CLI_HOSTSFILE = DATA_DIR / "cli.json"
+CLI_CONFIG = DATA_DIR / "cli.config"
+
 
 def test_validate_check_subnet(tmp_path: Path) -> None:
     with pytest.raises(
@@ -40,19 +45,17 @@ def test_parse_args() -> None:
 
 @pytest.fixture
 def expected_content() -> str:
-    expected = "cli.config"
-    return (Path(__file__).parent / expected).read_text("utf-8")
+    return CLI_CONFIG.read_text("utf-8")
 
 
 def run_cli(
     args: list[str], capsys: pytest.CaptureFixture
 ) -> tuple[str, str, str | None]:
     """Run the CLI."""
-    hostsfile = Path(__file__).parent / "cli.json"
-    args = [str(hostsfile), "localhost", *args]
+    args = [str(CLI_HOSTSFILE), "localhost", *args]
     cli(args)
 
-    ssh_file = Path.home().joinpath(".ssh/config")
+    ssh_file = Path.home() / ".ssh" / "config"
     try:
         ssh_content = ssh_file.read_text("utf-8")
     except FileNotFoundError:
