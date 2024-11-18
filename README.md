@@ -2,7 +2,7 @@
 
 Create a SSH config file for multiple hosts and proxyjumps.
 Configured with a JSON which defines each host and its hostnames.
-
+A schema to validate against is also in the src/create-ssh-config directory.
 ```json
 [
     {
