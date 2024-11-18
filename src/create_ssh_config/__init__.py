@@ -1,44 +1,21 @@
+# %%
 """Create a SSH config file for multiple hosts and proxyjumps.
 
 Configured with a JSON which defines each host and its hostnames.
-
-```json
-[
-    {
-        "host": "host1",
-        "user": "user1",
-        "auth": "password,publickey", # optional, default: publickey
-        "identityfile": "/path/to/identityfile", # optional, default: ~/.ssh/id_ed25519
-        "hostname": [
-            # at least one hostname is required
-            # the last hostnames check_subnet must be undefined or null
-            # everything else is optional
-            # if the check_subnet is "ping" the hostname is used.
-            {
-                # everything is optional
-                "hostname": "host1.example.com", # no default
-                "proxyjump": "other host" # default: none
-                "check_subnet": "ping", # default: arguments to check_subnet script
-                                        # if ping, the hostname is used
-                "port": 1222 # default: 22
-            }
-            #
-        ]
-    }
-]
+The schema is provided in the `schema.json` file.
 ```
 """
 
 from __future__ import annotations
 
-import argparse
-import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Literal
 
 import jinja2
+import jsonschema
 import msgspec
-from typing_extensions import NotRequired, TypeAlias
+
+from create_ssh_config.schema import Host, HostName_, ParsedHost
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -46,114 +23,52 @@ if TYPE_CHECKING:
 TEMPLATE_FILE = Path(__file__).parent / "template.j2"
 CHECK_SUBNET_FILE = Path(__file__).parent / "check-subnet"
 
-ParsedHost: TypeAlias = "tuple[str | None, str | None, int | None, str | None, str | None, str | None, str | None]"  # noqa: E501
+PREAMBLE = """\
+# Keep SSH connections alive
+TCPKeepAlive yes
+ServerAliveInterval 160
 
-HostnameDef = TypedDict(
-    "HostnameDef",
-    {"hostname": str, "proxyjump": str, "check-subnet": str, "port": int},
-    total=False,
-)
+# Hosts
+"""
 
-
-class Host(TypedDict):
-    """Layout of a host in the hosts file."""
-
-    host: str
-    user: str
-    hostname: list[HostnameDef]
-    auth: NotRequired[str]
-    identityfile: NotRequired[str]
-
-
-class Namespace(argparse.Namespace):
-    """Namespace for the command line arguments."""
-
-    hostsfile: Path
-    localhost: str
-    overwrite: bool
-    forward_x11: bool
-    no_store: bool
-    template: Path
-    check_subnet: Path
-    ignore_missing: bool
+POSTAMBLE = """\
+# Default settings
+Host *
+    Compression yes
+    PreferredAuthentications publickey
+    IdentityFile ~/.ssh/id_ed25519
+    GSSAPIAuthentication yes
+    GSSAPIDelegateCredentials yes
+    {no_x11}ForwardX11 yes
+    {no_x11}ForwardX11Trusted yes
+    XAuthLocation /opt/X11/bin/xauth
+"""
 
 
-def parse_args() -> Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument("hostsfile", help="Path to the hosts file", type=Path)
-    parser.add_argument("localhost", help="Which host is the local machine?", type=str)
-    parser.add_argument(
-        "--overwrite", help="Overwrite the existing config file", action="store_true"
-    )
-    parser.add_argument(
-        "--forward-x11",
-        help="Enable X11 forwarding",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--no-store",
-        help="Print the config to the console instead of saving it",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--template",
-        help="Path to a custom Jinja2 template file",
-        type=Path,
-        default=TEMPLATE_FILE,
-    )
-    parser.add_argument(
-        "--check-subnet",
-        help="Path to the check-subnet script",
-        type=Path,
-        default=CHECK_SUBNET_FILE,
-    )
-    parser.add_argument(
-        "--ignore-missing",
-        help="Ignore missing check-subnet script",
-        action="store_true",
-        default=False,
-    )
-    return parser.parse_args()  # type: ignore[return-value]
-
-
-def create_config(
-    template: str,
-    hosts: Sequence[Host],
-    localhost: str,
-    check_subnet: Path,
-    forward_x11: bool,
+def create_body(
+    template: str, hosts: Sequence[Host], localhost: str | None, check_subnet: Path
 ) -> str:
     """Apply the content of the hosts file to the template and return the config."""
     j2_template = jinja2.Template(template)
 
     parsed_hosts: dict[str, list[ParsedHost]] = {}
 
-    no_x11 = "# " if not forward_x11 else ""
-
     for host in hosts:
-        lhost, user = host["host"], host["user"]
-        auth = host.get("auth")
-        ifile = host.get("identityfile")
+        lhost, user = host.host, host.user
+        auth = host.auth
+        ifile = host.identityfile
         if lhost in parsed_hosts:
             raise ValueError(f"Duplicate host {lhost}")
 
-        if lhost == localhost:
+        if localhost and lhost == localhost:
             parsed_hosts[lhost] = [("localhost", user, None, None, None, None, None)]
             continue
 
         parsed_hosts[lhost] = []
 
-        hostnames = host["hostname"]
-        if not hostnames:
-            raise ValueError(f"Missing hostname for {lhost}")
-
+        hostnames = host.hostnames
         multiple = len(hostnames) > 1
-        has_proxyjump = any(hostname.get("proxyjump") for hostname in hostnames)
+        has_proxyjump = any(hostname.proxyjump for hostname in hostnames)
         lforce = multiple and has_proxyjump
 
         for ix, hostname in enumerate(hostnames):
@@ -162,13 +77,13 @@ def create_config(
             luser = user if last else None
             lauth = auth if last else None
 
-            lhostname = hostname.get("hostname")
-            ljump = hostname.get("proxyjump")
-            lcheck = hostname.get("check-subnet")
+            lhostname = hostname.hostname
+            ljump = hostname.proxyjump
+            lcheck: Literal["ping"] | HostName_ | None = hostname.check_subnet
             if lforce and not ljump and not last:
                 ljump = "none"
 
-            lport = hostname.get("port")
+            lport = hostname.port
             if lcheck == "ping":
                 if lhostname is None:
                     raise ValueError(f"Missing hostname for {lhost}")
@@ -182,13 +97,13 @@ def create_config(
             )
 
     return j2_template.render(
-        hosts=parsed_hosts, check_subnet_executable=str(check_subnet), no_x11=no_x11
+        hosts=parsed_hosts, check_subnet_executable=str(check_subnet)
     )
 
 
-def print_config(config: str) -> None:
-    """Print the config to the console."""
-    print(config)  # noqa: T201
+def finalize_config(body: str, forward_x11: bool = False) -> str:
+    """Add the preamble and postamble to the body."""
+    return PREAMBLE + body + POSTAMBLE.format(no_x11="" if forward_x11 else "# ")
 
 
 def save_config(config: str, overwrite: bool = False) -> None:
@@ -200,7 +115,7 @@ def save_config(config: str, overwrite: bool = False) -> None:
     """
     config_path = Path.home() / ".ssh/config"
     if not overwrite and config_path.exists():
-        print_config(config)
+        print(config)  # noqa: T201
         print("=" * 40)  # noqa: T201
         raise FileExistsError("ssh config already exists")
 
@@ -212,34 +127,14 @@ def save_config(config: str, overwrite: bool = False) -> None:
     config_path.write_text(config)
 
 
-def cli() -> int:
-    """Main entry point of the script."""
-    args = parse_args()
-
-    if not args.ignore_missing:
-        # try if just the basename is in PATH
-        only_name = shutil.which(args.check_subnet.name)
-        if only_name:
-            args.check_subnet = Path(args.check_subnet.name)
-        else:
-            # check if the full check-subnet script is in PATH
-            full_path = shutil.which(args.check_subnet)
-            if not full_path:
-                raise FileNotFoundError(
-                    f"check-subnet script {args.check_subnet} not found"
-                )
-
-    template = args.template.read_text("utf-8")
-    hosts_content = args.hostsfile.read_bytes()
+def get_hosts(hostsfile: Path) -> list[Host]:
+    """Get the validated hosts from the hosts file."""
+    hosts_content = hostsfile.read_bytes()
     raw_hosts = msgspec.json.decode(hosts_content)
-    hosts = msgspec.convert(raw_hosts, list[Host])
-    config = create_config(
-        template, hosts, args.localhost, args.check_subnet, args.forward_x11
-    )
 
-    if args.no_store:
-        print_config(config)
-    else:
-        save_config(config, args.overwrite)
+    # Validate with the extra attributes provided in the annotations
+    # if it succeeds continue with the converted objects
+    schema = msgspec.json.schema(list[Host])
+    jsonschema.validate(raw_hosts, schema)
 
-    return 0
+    return msgspec.convert(raw_hosts, list[Host])

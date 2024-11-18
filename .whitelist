@@ -1,4 +1,0 @@
-proxyjump  # unused variable (src/create_ssh_config/__init__.py:46)
-check_subnet  # unused variable (src/create_ssh_config/__init__.py:47)
-port  # unused variable (src/create_ssh_config/__init__.py:48)
-identityfile  # unused variable (src/create_ssh_config/__init__.py:58)

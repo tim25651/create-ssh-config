@@ -1,0 +1,10 @@
+[
+    {
+      "host": "testhost",
+      "hostnames": [
+        {
+          "hostname": "10.7.0.1"
+        }
+      ]
+    }
+]

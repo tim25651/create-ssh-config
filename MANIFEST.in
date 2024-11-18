@@ -1,3 +1,4 @@
 graft src
 include src/create_ssh_config/template.j2
-include src/create_ssh_config/check_subnet
+include src/create_ssh_config/check-subnet
+include src/create_ssh_config/schema.json

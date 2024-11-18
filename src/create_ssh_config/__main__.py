@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from create_ssh_config import cli
+from create_ssh_config.cli import cli
 
 if __name__ == "__main__":
-    cli()
+    raise SystemExit(cli())
