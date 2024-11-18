@@ -31,8 +31,9 @@ ServerAliveInterval 160
 # Hosts
 """
 
-POSTAMBLE = """\
+POSTAMBLE = """
 # Default settings
+
 Host *
     Compression yes
     PreferredAuthentications publickey

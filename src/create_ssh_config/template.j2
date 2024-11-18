@@ -19,7 +19,7 @@ Host {{ host }}
     ProxyJump {{ proxyjump }}
     {%- endif %}
     {%- if auth is not none %}
-    PreferredAuthentications {{ auth }}
+    PreferredAuthentications {{ auth | join(',') }}
     {%- endif %}
     {%- if identityfile is not none %}
     IdentityFile {{ identityfile }}

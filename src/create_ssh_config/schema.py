@@ -35,7 +35,7 @@ HostName_ = Annotated[
     ),
 ]
 # Host can also include globbing characters
-Host_ = Annotated[str, Meta(pattern=r"^[a-zA-Z0-9*-]+$")]
+Host_ = Annotated[str, Meta(pattern=r"^[a-zA-Z0-9*\.-]+$")]
 
 ParsedHost: TypeAlias = "tuple[str | None, str | None, int | None, str | None, HostName_ | None, list[AuthMethods] | None, str | None]"  # noqa: E501
 
