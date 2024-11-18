@@ -29,7 +29,7 @@ classifiers = [
 dev = ["coverage[toml]", "mypy", "pylint", "pytest"]
 
 [project.scripts]
-create-ssh-config = "create_ssh_config:cli"
+create-ssh-config = "create_ssh_config.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
