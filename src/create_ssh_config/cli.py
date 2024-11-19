@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from create_ssh_config import (
     CHECK_SUBNET_FILE,
     TEMPLATE_FILE,
-    create_body,
-    finalize_config,
-    get_hosts,
+    create_config,
     save_config,
 )
 
@@ -24,7 +21,7 @@ class Namespace(argparse.Namespace):
     """Namespace for the command line arguments."""
 
     hostsfile: Path
-    localhost: str
+    localhost: str | None
     overwrite: bool
     forward_x11: bool
     no_store: bool
@@ -39,7 +36,9 @@ def parse_args(argv: Sequence[str] | None = None) -> Namespace:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("hostsfile", help="Path to the hosts file", type=Path)
-    parser.add_argument("localhost", help="Which host is the local machine?", type=str)
+    parser.add_argument(
+        "--localhost", help="Which host is the local machine?", type=str, default=None
+    )
     parser.add_argument(
         "--overwrite", help="Overwrite the existing config file", action="store_true"
     )
@@ -76,63 +75,11 @@ def parse_args(argv: Sequence[str] | None = None) -> Namespace:
     return parser.parse_args(argv)  # type: ignore[return-value]
 
 
-def validate_check_subnet(check_subnet: Path) -> Path:
-    """Validate the check-subnet script."""
-    # try if just the basename is in PATH
-    only_name = shutil.which(check_subnet.name)
-    if only_name:
-        return Path(check_subnet.name)
-        # check if the full check-subnet script is in PATH
-
-    full_path = shutil.which(check_subnet)
-    if not full_path:
-        raise FileNotFoundError(f"check-subnet script {check_subnet} not found")
-    return check_subnet
-
-
-def main(
-    hostsfile: Path | str,
-    localhost: str,
-    forward_x11: bool,
-    template: Path | str = TEMPLATE_FILE,
-    check_subnet: Path | str = CHECK_SUBNET_FILE,
-    ignore_missing: bool = False,
-) -> str:
-    """Create an SSH config file from a hosts file."""
-    if isinstance(check_subnet, str):
-        if not ignore_missing:
-            raise ValueError(
-                "check_subnet must be Path to be validated or add --ignore-missing"
-            )
-        check_subnet = Path(check_subnet)
-
-    if not ignore_missing:
-        check_subnet = validate_check_subnet(check_subnet)
-
-    if isinstance(template, Path):
-        template = template.read_text("utf-8")
-
-    hosts = get_hosts(hostsfile)
-    body = create_body(template, hosts, localhost, check_subnet)
-    return finalize_config(body, forward_x11)
-
-
 def cli(argv: Sequence[str] | None = None) -> int:
     """Main entry point of the script."""
     args = parse_args(argv)
 
-    if not args.ignore_missing:
-        args.check_subnet = validate_check_subnet(args.check_subnet)
-
-    template = args.template.read_text("utf-8")
-
-    hosts = get_hosts(args.hostsfile)
-
-    body = create_body(template, hosts, args.localhost, args.check_subnet)
-
-    config = finalize_config(body, args.forward_x11)
-
-    config = main(
+    config = create_config(
         args.hostsfile,
         args.localhost,
         args.forward_x11,

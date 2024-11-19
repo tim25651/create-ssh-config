@@ -6,63 +6,25 @@ import runpy
 from pathlib import Path
 
 import pytest
+from helpers import run_cli
 
 from create_ssh_config import CHECK_SUBNET_FILE, TEMPLATE_FILE
-from create_ssh_config.cli import Namespace, cli, parse_args, validate_check_subnet
-
-TESTS_DIR = Path(__file__).parent
-DATA_DIR = TESTS_DIR / "data"
-CLI_HOSTSFILE = DATA_DIR / "cli.json"
-CLI_CONFIG = DATA_DIR / "cli.config"
-
-
-def test_validate_check_subnet(tmp_path: Path) -> None:
-    with pytest.raises(
-        FileNotFoundError, match="^check-subnet script NOT_FOUND not found$"
-    ):
-        validate_check_subnet(Path("NOT_FOUND"))
-    assert validate_check_subnet(Path("/bin/sh")) == Path("sh")
-
-    special_sh = tmp_path / "special_sh"
-    special_sh.symlink_to("/bin/sh")
-    assert validate_check_subnet(special_sh) == special_sh
+from create_ssh_config.cli import Namespace, parse_args
 
 
 def test_parse_args() -> None:
-    namespace = parse_args(["hostsfile", "localhost"])
+    namespace = parse_args(["hostsfile"])
     expected = Namespace(
         check_subnet=CHECK_SUBNET_FILE,
         forward_x11=False,
         hostsfile=Path("hostsfile"),
-        localhost="localhost",
+        localhost=None,
         no_store=False,
         overwrite=False,
         template=TEMPLATE_FILE,
         ignore_missing=False,
     )
     assert namespace == expected
-
-
-@pytest.fixture
-def expected_content() -> str:
-    return CLI_CONFIG.read_text("utf-8")
-
-
-def run_cli(
-    args: list[str], capsys: pytest.CaptureFixture
-) -> tuple[str, str, str | None]:
-    """Run the CLI."""
-    args = [str(CLI_HOSTSFILE), "localhost", *args]
-    cli(args)
-
-    ssh_file = Path.home() / ".ssh" / "config"
-    try:
-        ssh_content = ssh_file.read_text("utf-8")
-    except FileNotFoundError:
-        ssh_content = None
-
-    out, err = capsys.readouterr()
-    return out, err, ssh_content
 
 
 def test_cli_no_store(expected_content: str, capsys: pytest.CaptureFixture) -> None:
@@ -98,28 +60,6 @@ def test_cli_overwrite(
         assert not err
         assert not out
         assert ssh_content == expected_content
-
-
-@pytest.mark.parametrize("ignore_missing", [True, False])
-def test_ignore_missing(
-    ignore_missing: bool, expected_content: str, capsys: pytest.CaptureFixture
-) -> None:
-    args = ["--check-subnet", "NOT_FOUND"]
-
-    if not ignore_missing:
-        with pytest.raises(
-            FileNotFoundError, match="^check-subnet script NOT_FOUND not found$"
-        ):
-            run_cli(args, capsys)
-
-        out, err = capsys.readouterr()
-        assert not out
-        assert not err
-    else:
-        out, err, ssh_content = run_cli([*args, "--ignore-missing"], capsys)
-        assert not err
-        assert not out
-        assert ssh_content == expected_content.replace("check-subnet", "NOT_FOUND")
 
 
 def test_main(monkeypatch: pytest.MonkeyPatch) -> None:

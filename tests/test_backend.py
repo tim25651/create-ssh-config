@@ -11,11 +11,15 @@ from jsonschema.exceptions import ValidationError as SchemaValidationError
 from create_ssh_config import (
     POSTAMBLE,
     PREAMBLE,
+    TEMPLATE_FILE,
     Host,
     create_body,
+    create_config,
     finalize_config,
     get_hosts,
     save_config,
+    validate_check_subnet,
+    validate_check_subnet_script,
 )
 
 TESTS_DIR = Path(__file__).parent
@@ -52,17 +56,27 @@ def test_finalize_config(forward_x11: bool) -> None:
     assert config == PREAMBLE + "body" + POSTAMBLE.format(no_x11=no_x11)
 
 
-@pytest.mark.parametrize("hostsfile", INVALID_AT_VALIDATION.glob("*.json"))
-def test_get_hosts(hostsfile: Path) -> None:
-    valid = not hostsfile.stem.endswith("_invalid")
-    if not valid:
-        with pytest.raises((SchemaValidationError,)):
-            get_hosts(hostsfile)
+invalid_paths = list(INVALID_AT_VALIDATION.glob("*.json"))
+invalid_contents = [hosts.read_text("utf-8") for hosts in invalid_paths]
+invalid_all: list[Path | str] = invalid_paths + invalid_contents
 
-    else:
-        hosts = get_hosts(hostsfile)
-        assert isinstance(hosts, list)
-        assert all(isinstance(host, Host) for host in hosts)
+
+@pytest.mark.parametrize("hostsfile", invalid_all)
+def test_get_hosts_invalid(hostsfile: Path | str) -> None:
+    with pytest.raises((SchemaValidationError,)):
+        get_hosts(hostsfile)
+
+
+valid_paths = list(VALID.glob("*.json"))
+valid_contents = [hosts.read_text("utf-8") for hosts in valid_paths]
+valid_all: list[Path | str] = valid_paths + valid_contents
+
+
+@pytest.mark.parametrize("hostsfile", valid_all)
+def test_get_hosts_valid(hostsfile: Path | str) -> None:
+    hosts = get_hosts(hostsfile)
+    assert isinstance(hosts, list)
+    assert all(isinstance(host, Host) for host in hosts)
 
 
 @pytest.mark.parametrize("hostsfile", VALID.glob("*.json"))
@@ -70,8 +84,6 @@ def test_create_body(hostsfile: Path, template: str) -> None:
     hosts = get_hosts(hostsfile)
     body = create_body(template, hosts, None, Path("CHECK_SUBNET"))
     expected = Path(hostsfile.with_suffix(".config")).read_text("utf-8")
-    print(repr(body))
-    print(repr(expected))
     assert body == expected
 
 
@@ -96,3 +108,49 @@ def test_localhost(template: str) -> None:
     expected = DATA_DIR / "localhost.config"
     expected_content = expected.read_text("utf-8")
     assert body == expected_content
+
+
+def test_validate_check_subnet_script_not_found() -> None:
+    with pytest.raises(
+        FileNotFoundError, match="^check-subnet script NOT_FOUND not found$"
+    ):
+        validate_check_subnet_script(Path("NOT_FOUND"))
+
+
+def test_validate_check_subnet_script_success() -> None:
+    assert validate_check_subnet_script(Path("/bin/sh")) == Path("sh")
+
+
+def test_validate_check_subnet_script_not_in_path(tmp_path: Path) -> None:
+    special_sh = tmp_path / "special_sh"
+    special_sh.symlink_to("/bin/sh")
+    assert validate_check_subnet_script(special_sh) == special_sh
+
+
+def test_validate_check_subnet_str_no_ignore_missing() -> None:
+    with pytest.raises(
+        ValueError,
+        match="^check_subnet must be Path to be validated or add --ignore-missing$",
+    ):
+        validate_check_subnet("NOT_FOUND", ignore_missing=False)
+
+
+@pytest.mark.parametrize("check_subnet", [Path("NOT_FOUND"), "NOT_FOUND"])
+def test_validate_check_subnet_ignore_missing(check_subnet: Path | str) -> None:
+    assert validate_check_subnet(check_subnet, ignore_missing=True) == Path("NOT_FOUND")
+
+
+def test_validate_check_subnet_success() -> None:
+    assert validate_check_subnet(Path("/bin/sh"), ignore_missing=False) == Path("sh")
+
+
+template_content = TEMPLATE_FILE.read_text("utf-8")
+
+
+@pytest.mark.parametrize("template", [template_content, TEMPLATE_FILE])
+def test_create_config(template: Path | str) -> None:
+    cli_json = DATA_DIR / "cli.json"
+    config = create_config(cli_json, "localhost", False, template=template)
+    expected = DATA_DIR / "cli.config"
+    expected_content = expected.read_text("utf-8")
+    assert config == expected_content

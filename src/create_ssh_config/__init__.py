@@ -8,6 +8,7 @@ The schema is provided in the `schema.json` file.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -143,3 +144,51 @@ def get_hosts(hostsfile: Path | str) -> list[Host]:
     jsonschema.validate(raw_hosts, schema)
 
     return msgspec.convert(raw_hosts, list[Host])
+
+
+def validate_check_subnet_script(check_subnet: Path) -> Path:
+    """Try to locate the check-subnet script and check if it's in PATH."""
+    # try if just the basename is in PATH
+    only_name = shutil.which(check_subnet.name)
+    if only_name:
+        return Path(check_subnet.name)
+        # check if the full check-subnet script is in PATH
+
+    full_path = shutil.which(check_subnet)
+    if not full_path:
+        raise FileNotFoundError(f"check-subnet script {check_subnet} not found")
+    return check_subnet
+
+
+def validate_check_subnet(check_subnet: Path | str, ignore_missing: bool) -> Path:
+    """Validate the check_subnet argument."""
+    if isinstance(check_subnet, str):
+        if not ignore_missing:
+            raise ValueError(
+                "check_subnet must be Path to be validated or add --ignore-missing"
+            )
+        check_subnet = Path(check_subnet)
+
+    if not ignore_missing:
+        check_subnet = validate_check_subnet_script(check_subnet)
+
+    return check_subnet
+
+
+def create_config(
+    hostsfile: Path | str,
+    localhost: str | None = None,
+    forward_x11: bool = False,
+    template: Path | str = TEMPLATE_FILE,
+    check_subnet: Path | str = CHECK_SUBNET_FILE,
+    ignore_missing: bool = False,
+) -> str:
+    """Create an SSH config file from a hosts file."""
+    check_subnet = validate_check_subnet(check_subnet, ignore_missing)
+
+    if isinstance(template, Path):
+        template = template.read_text("utf-8")
+
+    hosts = get_hosts(hostsfile)
+    body = create_body(template, hosts, localhost, check_subnet)
+    return finalize_config(body, forward_x11)
