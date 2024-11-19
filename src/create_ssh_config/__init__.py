@@ -128,9 +128,13 @@ def save_config(config: str, overwrite: bool = False) -> None:
     config_path.write_text(config)
 
 
-def get_hosts(hostsfile: Path) -> list[Host]:
+def get_hosts(hostsfile: Path | str) -> list[Host]:
     """Get the validated hosts from the hosts file."""
-    hosts_content = hostsfile.read_bytes()
+    if isinstance(hostsfile, Path):
+        hosts_content = hostsfile.read_bytes()
+    else:
+        hosts_content = hostsfile.encode("utf-8")
+
     raw_hosts = msgspec.json.decode(hosts_content)
 
     # Validate with the extra attributes provided in the annotations

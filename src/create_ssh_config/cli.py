@@ -90,6 +90,33 @@ def validate_check_subnet(check_subnet: Path) -> Path:
     return check_subnet
 
 
+def main(
+    hostsfile: Path | str,
+    localhost: str,
+    forward_x11: bool,
+    template: Path | str = TEMPLATE_FILE,
+    check_subnet: Path | str = CHECK_SUBNET_FILE,
+    ignore_missing: bool = False,
+) -> str:
+    """Create an SSH config file from a hosts file."""
+    if isinstance(check_subnet, str):
+        if not ignore_missing:
+            raise ValueError(
+                "check_subnet must be Path to be validated or add --ignore-missing"
+            )
+        check_subnet = Path(check_subnet)
+
+    if not ignore_missing:
+        check_subnet = validate_check_subnet(check_subnet)
+
+    if isinstance(template, Path):
+        template = template.read_text("utf-8")
+
+    hosts = get_hosts(hostsfile)
+    body = create_body(template, hosts, localhost, check_subnet)
+    return finalize_config(body, forward_x11)
+
+
 def cli(argv: Sequence[str] | None = None) -> int:
     """Main entry point of the script."""
     args = parse_args(argv)
@@ -104,6 +131,15 @@ def cli(argv: Sequence[str] | None = None) -> int:
     body = create_body(template, hosts, args.localhost, args.check_subnet)
 
     config = finalize_config(body, args.forward_x11)
+
+    config = main(
+        args.hostsfile,
+        args.localhost,
+        args.forward_x11,
+        args.template,
+        args.check_subnet,
+        args.ignore_missing,
+    )
 
     if args.no_store:
         print(config, end="")  # noqa: T201
