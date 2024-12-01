@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 import create_ssh_config
-from create_ssh_config import CHECK_SUBNET_FILE, TEMPLATE_FILE
+from create_ssh_config import Assets
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -21,17 +21,21 @@ CLI_CONFIG = DATA_DIR / "cli.config"
 
 @pytest.fixture(scope="session", autouse=True)
 def add_to_path() -> None:
-    os.environ["PATH"] += os.pathsep + str(CHECK_SUBNET_FILE.parent)
+    os.environ["PATH"] += os.pathsep + str(Assets.SCRIPT.parent)
 
 
 @pytest.fixture
 def template() -> str:
-    return TEMPLATE_FILE.read_text("utf-8")
+    return Assets.TEMPLATE.read_text("utf-8")
 
 
 @pytest.fixture(autouse=True)
 def patch_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    def get_tmp_path() -> Path:
+        """Return the tmp_path."""
+        return tmp_path
+
+    monkeypatch.setattr(Path, "home", get_tmp_path)
 
 
 @pytest.fixture

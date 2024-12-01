@@ -6,12 +6,7 @@ import argparse
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from create_ssh_config import (
-    CHECK_SUBNET_FILE,
-    TEMPLATE_FILE,
-    create_config,
-    save_config,
-)
+from create_ssh_config import Assets, create_config, save_config
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -58,13 +53,13 @@ def parse_args(argv: Sequence[str] | None = None) -> Namespace:
         "--template",
         help="Path to a custom Jinja2 template file",
         type=Path,
-        default=TEMPLATE_FILE,
+        default=Assets.TEMPLATE,
     )
     parser.add_argument(
         "--check-subnet",
         help="Path to the check-subnet script",
         type=Path,
-        default=CHECK_SUBNET_FILE,
+        default=Assets.SCRIPT,
     )
     parser.add_argument(
         "--ignore-missing",

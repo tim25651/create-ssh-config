@@ -3,6 +3,25 @@
 
 Configured with a JSON which defines each host and its hostnames.
 The schema is provided in the `schema.json` file.
+```yaml
+- host: host1
+  user: user1
+  auth: # optional, default: publickey
+    - password
+    - publickey
+  identityfile: "/path/to/identityfile" # optional, default: ~/.ssh/id_ed25519
+  hostnames:
+    # at least one hostname is required
+    # the last hostnames check-subnet must be undefined or null
+    # everything else is optional
+    # if the check-subnet is "ping" the hostname is used.
+    - hostname: host1.example.com # no default
+      proxyjump: other host # default: none
+      check-subnet:
+        ping # default: arguments to check_subnet script
+        # if ping, the hostname is used
+      port: 1222 # default: 22
+      # but everything is optional
 ```
 """
 
@@ -21,30 +40,15 @@ from create_ssh_config.schema import Host, HostName_, ParsedHost
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-TEMPLATE_FILE = Path(__file__).parent / "template.j2"
-CHECK_SUBNET_FILE = Path(__file__).parent / "check-subnet"
 
-PREAMBLE = """\
-# Keep SSH connections alive
-TCPKeepAlive yes
-ServerAliveInterval 160
+class Assets:
+    """The provided files."""
 
-# Hosts
-"""
-
-POSTAMBLE = """
-# Default settings
-
-Host *
-    Compression yes
-    PreferredAuthentications publickey
-    IdentityFile ~/.ssh/id_ed25519
-    GSSAPIAuthentication yes
-    GSSAPIDelegateCredentials yes
-    {no_x11}ForwardX11 yes
-    {no_x11}ForwardX11Trusted yes
-    XAuthLocation /opt/X11/bin/xauth
-"""
+    TEMPLATE: Path = Path(__file__).parent / "assets" / "template.j2"
+    SCRIPT: Path = Path(__file__).parent / "assets" / "check-subnet"
+    PREAMBLE: Path = Path(__file__).parent / "assets" / "preamble.j2"
+    POSTAMBLE: Path = Path(__file__).parent / "assets" / "postamble.j2"
+    # SCHEMA: Path = Path(__file__).parent / "assets" / "schema.json" # noqa: ERA001
 
 
 def create_body(
@@ -105,7 +109,11 @@ def create_body(
 
 def finalize_config(body: str, forward_x11: bool = False) -> str:
     """Add the preamble and postamble to the body."""
-    return PREAMBLE + body + POSTAMBLE.format(no_x11="" if forward_x11 else "# ")
+    preamble = jinja2.Template(Assets.PREAMBLE.read_text("utf-8")).render()
+    postamble = jinja2.Template(Assets.POSTAMBLE.read_text("utf-8")).render(
+        no_x11="" if forward_x11 else "# "
+    )
+    return preamble + "\n" + body + "\n" + postamble + "\n"
 
 
 def save_config(config: str, overwrite: bool = False) -> None:
@@ -127,6 +135,7 @@ def save_config(config: str, overwrite: bool = False) -> None:
         ssh_dir.mkdir(0o700)
 
     config_path.write_text(config)
+    config_path.chmod(0o644)
 
 
 def get_hosts(hostsfile: Path | str) -> list[Host]:
@@ -136,7 +145,7 @@ def get_hosts(hostsfile: Path | str) -> list[Host]:
     else:
         hosts_content = hostsfile.encode("utf-8")
 
-    raw_hosts = msgspec.json.decode(hosts_content)
+    raw_hosts: object = msgspec.yaml.decode(hosts_content)
 
     # Validate with the extra attributes provided in the annotations
     # if it succeeds continue with the converted objects
@@ -179,8 +188,8 @@ def create_config(
     hostsfile: Path | str,
     localhost: str | None = None,
     forward_x11: bool = False,
-    template: Path | str = TEMPLATE_FILE,
-    check_subnet: Path | str = CHECK_SUBNET_FILE,
+    template: Path | str = Assets.TEMPLATE,
+    check_subnet: Path | str = Assets.SCRIPT,
     ignore_missing: bool = False,
 ) -> str:
     """Create an SSH config file from a hosts file."""

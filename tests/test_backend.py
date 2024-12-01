@@ -9,13 +9,10 @@ import pytest
 from jsonschema.exceptions import ValidationError as SchemaValidationError
 
 from create_ssh_config import (
-    POSTAMBLE,
-    PREAMBLE,
-    TEMPLATE_FILE,
+    Assets,
     Host,
     create_body,
     create_config,
-    finalize_config,
     get_hosts,
     save_config,
     validate_check_subnet,
@@ -49,14 +46,7 @@ def test_save_config(exists: bool, overwrite: bool) -> None:
         assert config_file.stat().st_mode == 0o100644
 
 
-@pytest.mark.parametrize("forward_x11", [True, False])
-def test_finalize_config(forward_x11: bool) -> None:
-    config = finalize_config("body", forward_x11)
-    no_x11 = "" if forward_x11 else "# "
-    assert config == PREAMBLE + "body" + POSTAMBLE.format(no_x11=no_x11)
-
-
-invalid_paths = list(INVALID_AT_VALIDATION.glob("*.json"))
+invalid_paths = list(INVALID_AT_VALIDATION.glob("*.yaml"))
 invalid_contents = [hosts.read_text("utf-8") for hosts in invalid_paths]
 invalid_all: list[Path | str] = invalid_paths + invalid_contents
 
@@ -67,7 +57,7 @@ def test_get_hosts_invalid(hostsfile: Path | str) -> None:
         get_hosts(hostsfile)
 
 
-valid_paths = list(VALID.glob("*.json"))
+valid_paths = list(VALID.glob("*.yaml"))
 valid_contents = [hosts.read_text("utf-8") for hosts in valid_paths]
 valid_all: list[Path | str] = valid_paths + valid_contents
 
@@ -79,7 +69,7 @@ def test_get_hosts_valid(hostsfile: Path | str) -> None:
     assert all(isinstance(host, Host) for host in hosts)
 
 
-@pytest.mark.parametrize("hostsfile", VALID.glob("*.json"))
+@pytest.mark.parametrize("hostsfile", VALID.glob("*.yaml"))
 def test_create_body(hostsfile: Path, template: str) -> None:
     hosts = get_hosts(hostsfile)
     body = create_body(template, hosts, None, Path("CHECK_SUBNET"))
@@ -90,9 +80,9 @@ def test_create_body(hostsfile: Path, template: str) -> None:
 @pytest.mark.parametrize(
     ("hostsfile", "error"),
     [
-        ("check_subnet_in_last.json", "Last hostname must not have check-subnet other"),
-        ("duplicate_hosts.json", "Duplicate host testhost"),
-        ("missing_hostname.json", "Missing hostname for testhost"),
+        ("check_subnet_in_last.yaml", "Last hostname must not have check-subnet other"),
+        ("duplicate_hosts.yaml", "Duplicate host testhost"),
+        ("missing_hostname.yaml", "Missing hostname for testhost"),
     ],
 )
 def test_check_subnet_in_last(hostsfile: str, error: str, template: str) -> None:
@@ -103,7 +93,7 @@ def test_check_subnet_in_last(hostsfile: str, error: str, template: str) -> None
 
 
 def test_localhost(template: str) -> None:
-    hosts = get_hosts(DATA_DIR / "localhost.json")
+    hosts = get_hosts(DATA_DIR / "localhost.yaml")
     body = create_body(template, hosts, "testhost", Path("CHECK_SUBNET"))
     expected = DATA_DIR / "localhost.config"
     expected_content = expected.read_text("utf-8")
@@ -144,12 +134,11 @@ def test_validate_check_subnet_success() -> None:
     assert validate_check_subnet(Path("/bin/sh"), ignore_missing=False) == Path("sh")
 
 
-template_content = TEMPLATE_FILE.read_text("utf-8")
-
-
-@pytest.mark.parametrize("template", [template_content, TEMPLATE_FILE])
+@pytest.mark.parametrize(
+    "template", [Assets.TEMPLATE.read_text("utf-8"), Assets.TEMPLATE]
+)
 def test_create_config(template: Path | str) -> None:
-    cli_json = DATA_DIR / "cli.json"
+    cli_json = DATA_DIR / "cli.yaml"
     config = create_config(cli_json, "localhost", False, template=template)
     expected = DATA_DIR / "cli.config"
     expected_content = expected.read_text("utf-8")

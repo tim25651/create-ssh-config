@@ -10,8 +10,8 @@ version = "0.0.4"
 dependencies = [
     "jinja2",
     "jsonschema",
+    "PyYAML",
     "msgspec",
-    "tomli_w",
 ]
 requires-python = ">=3.9"
 authors = [

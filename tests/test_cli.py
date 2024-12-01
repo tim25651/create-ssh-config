@@ -8,20 +8,20 @@ from pathlib import Path
 import pytest
 from helpers import run_cli
 
-from create_ssh_config import CHECK_SUBNET_FILE, TEMPLATE_FILE
+from create_ssh_config import Assets
 from create_ssh_config.cli import Namespace, parse_args
 
 
 def test_parse_args() -> None:
     namespace = parse_args(["hostsfile"])
     expected = Namespace(
-        check_subnet=CHECK_SUBNET_FILE,
+        check_subnet=Assets.SCRIPT,
         forward_x11=False,
         hostsfile=Path("hostsfile"),
         localhost=None,
         no_store=False,
         overwrite=False,
-        template=TEMPLATE_FILE,
+        template=Assets.TEMPLATE,
         ignore_missing=False,
     )
     assert namespace == expected

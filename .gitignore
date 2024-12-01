@@ -6,7 +6,7 @@
 
 # Nox
 .nox
-noxfile.py/
+noxfile.py
 
 # Wheels
 *.whl

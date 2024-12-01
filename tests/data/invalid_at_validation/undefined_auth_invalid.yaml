@@ -1,0 +1,7 @@
+---
+- host: testhost
+  user: testuser
+  auth:
+  - undefined
+  hostnames:
+  - hostname: 10.7.0.1

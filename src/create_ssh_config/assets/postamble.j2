@@ -1,0 +1,11 @@
+# Default settings
+
+Host *
+    Compression yes
+    PreferredAuthentications publickey
+    IdentityFile ~/.ssh/id_ed25519
+    GSSAPIAuthentication yes
+    GSSAPIDelegateCredentials yes
+    {{ no_x11 }}ForwardX11 yes
+    {{ no_x11 }}ForwardX11Trusted yes
+    XAuthLocation /opt/X11/bin/xauth

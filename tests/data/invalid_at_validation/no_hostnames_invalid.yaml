@@ -1,0 +1,4 @@
+---
+- host: testhost
+  user: testuser
+  hostnames: []

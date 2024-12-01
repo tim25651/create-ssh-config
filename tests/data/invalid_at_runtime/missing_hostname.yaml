@@ -1,0 +1,6 @@
+---
+- host: testhost
+  user: testuser
+  hostnames:
+  - check-subnet: ping
+  - hostname: 10.7.0.1

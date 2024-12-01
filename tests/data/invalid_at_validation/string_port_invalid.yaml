@@ -1,0 +1,6 @@
+---
+- host: testhost
+  user: testuser
+  hostnames:
+  - hostname: 10.7.0.1
+    port: '1'
