@@ -1,3 +1,4 @@
+#%%
 """Define the schema for the hosts file."""
 
 from __future__ import annotations
