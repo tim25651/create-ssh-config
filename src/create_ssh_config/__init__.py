@@ -48,7 +48,6 @@ class Assets:
     SCRIPT: Path = Path(__file__).parent / "assets" / "check-subnet"
     PREAMBLE: Path = Path(__file__).parent / "assets" / "preamble.j2"
     POSTAMBLE: Path = Path(__file__).parent / "assets" / "postamble.j2"
-    # SCHEMA: Path = Path(__file__).parent / "assets" / "schema.json" # noqa: ERA001
 
 
 def create_body(
