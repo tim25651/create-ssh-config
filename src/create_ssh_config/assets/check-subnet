@@ -8,9 +8,10 @@ if [[ $1 == "localhost" ]]; then # hardcoded
     exit 0
 fi
 
-if [[ ! $(timeout --version 2>/dev/null; echo $?) -eq 0 ]]; then
-    function timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
-fi
+which timeout >/dev/null || function timeout() {
+   1=$(($1 * 900000))
+   perl -e 'use Time::HiRes "ualarm"; ualarm shift; exec @ARGV' "$@";
+}
  
 ip_regex="([0-9]{1,3}\.){3}[0-9]{1,3}"
 if [[ $1 =~ $ip_regex ]]; then
