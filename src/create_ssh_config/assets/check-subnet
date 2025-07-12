@@ -1,32 +1,28 @@
 #!/bin/bash
 if [ -z "$1" ]; then
-    echo "Usage: $0 <vpnname|ip>"
+    echo "Usage: $0 <vpnname|hostname|ip>"
     exit 1
 fi
 
-if [[ $1 == "localhost" ]]; then # hardcoded
+if [[ "$1" == "localhost" ]]; then # hardcoded
     exit 0
 fi
 
-which timeout >/dev/null || function timeout() {
-   1=$(($1 * 900000))
-   perl -e 'use Time::HiRes "ualarm"; ualarm shift; exec @ARGV' "$@";
+which timeout >/dev/null || function timeout() { 
+   duration=$(echo "scale=0; $1*900000" | bc) # factor 900000 ~ same time as GNU timeout
+   shift; set -- "$duration" "$@"
+   perl -e 'use Time::HiRes "ualarm"; ualarm shift; exec @ARGV' "$@"
 }
- 
+
 ip_regex="([0-9]{1,3}\.){3}[0-9]{1,3}"
 if [[ $1 =~ $ip_regex ]]; then
-    if [ ! -z "$(timeout 0.1 nc -vz $1 22 2>&1 | grep "succeeded")" ]; then # todo: port should be configurable
-        exit 0
-    else
-        exit 1 # exit as a VPN unlikely has an IP as name
-    fi
+    timeout 0.1 nc -vz "$1" 22 2>/dev/null && exit 0  # todo: port should be configurable
+    exit 1 # exit as a VPN unlikely has an IP as name
 fi
 
 hostname_regex="([a-zA-Z0-9]+\.){1,}[a-zA-Z0-9]+"
 if [[ $1 =~ $hostname_regex ]]; then
-    if [ ! -z "$(timeout 0.1 nc -z $1 22 2>&1 | grep "succeeded")" ]; then # todo: port should be configurable
-        exit 0
-    fi
+    timeout 0.1 nc -vz "$1" 22 2>/dev/null && exit 0  # todo: port should be configurable
     # dont't exit, because a VPN name could look like a hostname
 fi
 
